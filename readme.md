@@ -134,7 +134,7 @@ All human control goes through `bin/clawbot-control.sh`:
 
 ```bash
 # Live read-only view of Claude Code in the tmux pane (Ctrl-b then d to detach):
-tmux -S "${TMPDIR:-/tmp}/clawdbot-tmux-sockets/clawdbot.sock" attach -t bmad-agent -r
+tmux -S "$HOME/.clawbot/clawdbot.sock" attach -t bmad-agent -r
 
 # Raw output from headless Claude each tick:
 tail -f <project>/_bmad-output/implementation-artifacts/clawbot.log

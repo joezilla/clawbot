@@ -7,13 +7,17 @@
 
 set -euo pipefail
 
+# cron runs with a minimal PATH that omits Homebrew and the user's local bin,
+# so flock/tmux/claude resolve to "command not found". Prepend them here.
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/bin:/usr/local/bin:$PATH"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
 ACTIVE_FILE="$INSTALL_DIR/etc/active-project"
 PROCEDURE_FILE="$INSTALL_DIR/lib/procedure.md"
 NOTIFY="$SCRIPT_DIR/clawbot-notify.sh"
 
-CLAWBOT_SOCKET="${TMPDIR:-/tmp}/clawdbot-tmux-sockets/clawdbot.sock"
+CLAWBOT_SOCKET="$HOME/.clawbot/clawdbot.sock"
 CLAWBOT_SESSION="bmad-agent"
 export CLAWBOT_SOCKET CLAWBOT_SESSION
 

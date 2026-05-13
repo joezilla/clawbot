@@ -28,7 +28,7 @@ fi
 PROJECT_DIR="$(head -n1 "$ACTIVE_FILE")"
 STATE_FILE="$PROJECT_DIR/memory/bmad-dev-state.json"
 ACTIVITY_LOG="$PROJECT_DIR/_bmad-output/implementation-artifacts/claw-loop-activity.log"
-SOCKET="${TMPDIR:-/tmp}/clawdbot-tmux-sockets/clawdbot.sock"
+SOCKET="$HOME/.clawbot/clawdbot.sock"
 SESSION="bmad-agent"
 
 if [[ ! -f "$STATE_FILE" ]]; then

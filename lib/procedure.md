@@ -75,7 +75,7 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
 <cron-step id="1" name="capture-pane">
 ☐ STEP 1: CAPTURE PANE
 
-  ACTION: tmux -S "${TMPDIR:-/tmp}/clawdbot-tmux-sockets/clawdbot.sock" capture-pane -p -J -t bmad-agent:0.0 -S -50
+  ACTION: tmux -S "$HOME/.clawbot/clawdbot.sock" capture-pane -p -J -t bmad-agent:0.0 -S -50
   ℹ️ Capture 50 lines for better context
   ⛔ Text and Enter are ALWAYS separate tmux send-keys calls throughout this procedure
 </cron-step>
@@ -518,7 +518,7 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
   ☐ 4.5a. Wait 10 seconds — give CC time to process the command
 
   ☐ 4.5b. Re-capture the pane:
-    ACTION: tmux -S "${TMPDIR:-/tmp}/clawdbot-tmux-sockets/clawdbot.sock" capture-pane -p -J -t bmad-agent:0.0 -S -30
+    ACTION: tmux -S "$HOME/.clawbot/clawdbot.sock" capture-pane -p -J -t bmad-agent:0.0 -S -30
 
   ☐ 4.5c. Evaluate what CC is doing NOW:
 

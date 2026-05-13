@@ -381,7 +381,7 @@ which tmux
 ## Step 2: Create/Find the tmux Session
 
 ```bash
-SOCKET="${TMPDIR:-/tmp}/clawdbot-tmux-sockets/clawdbot.sock"
+SOCKET="$HOME/.clawbot/clawdbot.sock"
 SESSION="bmad-agent"
 
 # Check if session exists
@@ -401,7 +401,7 @@ Wait 10 seconds for Claude Code to initialize, then verify it's running by captu
 > **Want to watch Claude Code work in real-time?** Open a new terminal window and run this command:
 >
 > ```
-> tmux -S "${TMPDIR:-/tmp}/clawdbot-tmux-sockets/clawdbot.sock" attach -t bmad-agent -r
+> tmux -S "$HOME/.clawbot/clawdbot.sock" attach -t bmad-agent -r
 > ```
 >
 > The `-r` flag makes it **read-only** — you can watch everything CC does without accidentally typing into the session. You'll see every file it reads, every edit it makes, every test it runs — live.
@@ -628,7 +628,7 @@ If this is your first fire, after a /clear, or if you've lost track of the proce
 → Read memory/claw-loop-procedure.md end-to-end before acting.
 Otherwise, continue from your current state — the state file tells you where you are.
 
-TMUX SOCKET: ${TMPDIR:-/tmp}/clawdbot-tmux-sockets/clawdbot.sock
+TMUX SOCKET: $HOME/.clawbot/clawdbot.sock
 TMUX SESSION: bmad-agent
 CHANNEL: [CHANNEL]
 TARGET_ID: [TARGET_ID]
@@ -785,7 +785,7 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
 <cron-step id="1" name="capture-pane">
 ☐ STEP 1: CAPTURE PANE
 
-  ACTION: tmux -S "${TMPDIR:-/tmp}/clawdbot-tmux-sockets/clawdbot.sock" capture-pane -p -J -t bmad-agent:0.0 -S -50
+  ACTION: tmux -S "$HOME/.clawbot/clawdbot.sock" capture-pane -p -J -t bmad-agent:0.0 -S -50
   ℹ️ Capture 50 lines for better context
   ⛔ Text and Enter are ALWAYS separate tmux send-keys calls throughout this procedure
 </cron-step>
@@ -1178,7 +1178,7 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
   ☐ 4.5a. Wait 10 seconds — give CC time to process the command
 
   ☐ 4.5b. Re-capture the pane:
-    ACTION: tmux -S "${TMPDIR:-/tmp}/clawdbot-tmux-sockets/clawdbot.sock" capture-pane -p -J -t bmad-agent:0.0 -S -30
+    ACTION: tmux -S "$HOME/.clawbot/clawdbot.sock" capture-pane -p -J -t bmad-agent:0.0 -S -30
 
   ☐ 4.5c. Evaluate what CC is doing NOW:
 

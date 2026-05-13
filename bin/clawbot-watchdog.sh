@@ -6,6 +6,9 @@
 
 set -euo pipefail
 
+# cron runs with a minimal PATH that omits Homebrew and the user's local bin.
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/bin:/usr/local/bin:$PATH"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
 ACTIVE_FILE="$INSTALL_DIR/etc/active-project"

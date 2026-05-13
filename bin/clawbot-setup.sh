@@ -17,7 +17,7 @@ ETC_DIR="$INSTALL_DIR/etc"
 TICK_SCRIPT="$SCRIPT_DIR/clawbot-tick.sh"
 WATCHDOG_SCRIPT="$SCRIPT_DIR/clawbot-watchdog.sh"
 
-CLAWBOT_SOCKET="${TMPDIR:-/tmp}/clawdbot-tmux-sockets/clawdbot.sock"
+CLAWBOT_SOCKET="$HOME/.clawbot/clawdbot.sock"
 CLAWBOT_SESSION="bmad-agent"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
