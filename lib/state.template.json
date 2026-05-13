@@ -1,0 +1,77 @@
+{
+  "currentStory": "__FIRST_STORY_KEY__",
+  "currentStoryNumber": "__FIRST_STORY_NUMBER__",
+  "currentStoryFilePath": null,
+  "currentEpic": 1,
+  "currentStep": "create-story",
+  "status": "running",
+  "lastUpdated": "__ISO_TIMESTAMP__",
+  "lastActionAt": "__ISO_TIMESTAMP__",
+  "currentStepType": "create-story",
+  "notes": "Claw Loop initialized from sprint-status.yaml.",
+  "storyQueue": [],
+  "completedStories": [],
+  "currentEpicStories": [],
+  "stepOrder": ["create-story", "dev-story", "code-review", "epic-review", "epic-remediation"],
+  "cronInterval": "3min-fixed-with-smart-skip",
+  "escalationMode": "autonomous",
+  "paneFingerprint": "",
+  "stallCount": 0,
+  "failureCount": 0,
+  "reviewPassNumber": 1,
+  "totalStoriesCompleted": 0,
+  "totalEpicsCompleted": 0,
+  "sessionStartedAt": "__ISO_TIMESTAMP__",
+  "lastReviewOutcome": null,
+  "consecutiveIdleCycles": 0,
+  "pendingPrompt": false,
+  "pendingPromptText": null,
+  "pendingPromptFirstSeen": null,
+  "quarantinedStories": [],
+  "gitVerification": {
+    "pendingVerification": false,
+    "verificationAttempts": 0,
+    "lastVerifiedStory": null,
+    "lastVerifiedCommit": null
+  },
+  "modelStrategy": {
+    "currentModel": null,
+    "currentModelTier": null,
+    "modelSource": null,
+    "fallbackActive": false,
+    "modelStrategyFile": "_bmad-output/implementation-artifacts/claw-loop-model-strategy.yaml",
+    "lastModelSwitchAt": null
+  },
+  "cronHealth": {
+    "lastCronFire": "__ISO_TIMESTAMP__",
+    "consecutiveFires": 0,
+    "lastSkipReason": null,
+    "cronStatus": "healthy"
+  },
+  "rateLimit": {
+    "detectedAt": null,
+    "resumeAt": null,
+    "raw": null,
+    "resumeStep": null,
+    "hitCount": 0,
+    "lastResumedAt": null
+  },
+  "epicReview": {
+    "passNumber": 0,
+    "startedAt": null,
+    "findings": [],
+    "lastFindingsFile": null,
+    "autoFixedCount": 0,
+    "deferredCount": 0,
+    "unresolvedCount": 0
+  },
+  "metrics": {
+    "currentStoryStartedAt": "__ISO_TIMESTAMP__",
+    "currentStoryCronFires": 0,
+    "sprintStartedAt": "__ISO_TIMESTAMP__",
+    "totalCronFires": 0,
+    "totalCronSkips": 0,
+    "activityLogFile": "_bmad-output/implementation-artifacts/claw-loop-activity.log",
+    "completedStoryMetrics": []
+  }
+}
