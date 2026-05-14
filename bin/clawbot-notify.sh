@@ -3,7 +3,7 @@
 # Usage: clawbot-notify.sh <STATUS> <MESSAGE>
 # Status is a bracketed tag like [WORKING], [TRANSITION], [DONE], [STALL],
 # [NEEDS-HUMAN], [HALTED], [TICK-ERROR], [EPIC-DEFERRED], [EPIC-UNRESOLVED],
-# [QUALITY-GATE-VIOLATION], [QUALITY-GATE-CORRECTION], [CRON-DEAD], [UNKNOWN-PROMPT].
+# [QUALITY-GATE-VIOLATION], [QUALITY-GATE-CORRECTION], [TICK-DEAD], [UNKNOWN-PROMPT].
 #
 # Reads the active project path from etc/active-project (relative to the
 # orchestrator install dir) to know where to append the messages log.

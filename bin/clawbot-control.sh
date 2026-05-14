@@ -72,8 +72,8 @@ case "$cmd" in
       "Stories done:  " + (.totalStoriesCompleted | tostring) + " / " + (.storyQueue | length | tostring),
       "Epics done:    " + (.totalEpicsCompleted | tostring),
       "Escalation:    " + .escalationMode,
-      "Last cron:     " + .cronHealth.lastCronFire,
-      "Cron status:   " + .cronHealth.cronStatus,
+      "Last tick:     " + .cronHealth.lastCronFire,
+      "Tick status:   " + .cronHealth.cronStatus,
       "Epic review:   " + ((.epicReview.findings | length) | tostring) + " findings, pass " + (.epicReview.passNumber | tostring) + "/3"
     ' "$STATE_FILE"
     if [[ "$(jq -r '.status' "$STATE_FILE")" == "rate-limited" ]]; then
@@ -88,7 +88,7 @@ case "$cmd" in
           if [[ "$REMAINING_MIN" -gt 0 ]]; then
             echo "Rate limit:    detected $DETECTED_AT, resumes $RESUME_AT (~${REMAINING_MIN}m remaining), hits=$HITS"
           else
-            echo "Rate limit:    detected $DETECTED_AT, resumes $RESUME_AT (window elapsed, next cron will flip back to running), hits=$HITS"
+            echo "Rate limit:    detected $DETECTED_AT, resumes $RESUME_AT (window elapsed, next tick will flip back to running), hits=$HITS"
           fi
         fi
       fi
@@ -188,7 +188,7 @@ case "$cmd" in
       .stallCount = 0
     ' --arg ts "$(ts)"
     log_event "HUMAN_CMD | command:clear-rate-limit"
-    echo "Rate limit cleared. Next cron fire (~3min) will resume the loop."
+    echo "Rate limit cleared. Next tick fire (~3min) will resume the loop."
     ;;
 
   *)

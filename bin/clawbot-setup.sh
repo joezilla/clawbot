@@ -3,10 +3,14 @@
 # Usage: clawbot-setup.sh <absolute-bmad-project-path>
 #
 # Verifies deps, validates the BMAD project, creates the tmux session, seeds
-# state/procedure/model-strategy files, registers cron entries, and prints
-# the read-only tmux attach command. The pre-sprint model strategy is written
-# in safe "all-highest" mode by default — edit the YAML to refine before the
-# first cron fires if you want a different strategy.
+# state/procedure/model-strategy files, installs and bootstraps the tick +
+# watchdog LaunchAgents into gui/$(id -u), and prints the read-only tmux
+# attach command. The pre-sprint model strategy is written in safe
+# "all-highest" mode by default — edit the YAML to refine before the first
+# tick fires if you want a different strategy.
+#
+# The agents must run as user LaunchAgents (not cron) so `claude -p` can read
+# its OAuth token from the macOS login keychain.
 
 set -euo pipefail
 
@@ -204,28 +208,78 @@ EOF
   info "Activity log header written."
 fi
 
-# --- 9. Register active-project + cron entries ---
+# --- 9. Register active-project + LaunchAgents ---
 mkdir -p "$ETC_DIR"
 echo "$PROJECT_DIR" > "$ETC_DIR/active-project"
 
-TICK_LINE="*/3 * * * * $TICK_SCRIPT >> $PROJECT_DIR/_bmad-output/implementation-artifacts/clawbot.log 2>&1"
-WATCHDOG_LINE="*/10 * * * * $WATCHDOG_SCRIPT >> $PROJECT_DIR/_bmad-output/implementation-artifacts/clawbot.log 2>&1"
+LAUNCHAGENTS_DIR="$HOME/Library/LaunchAgents"
+TICK_LABEL="ai.clawot.tick"
+WATCHDOG_LABEL="ai.clawot.watchdog"
+TICK_PLIST="$LAUNCHAGENTS_DIR/${TICK_LABEL}.plist"
+WATCHDOG_PLIST="$LAUNCHAGENTS_DIR/${WATCHDOG_LABEL}.plist"
+LOG_PATH="$PROJECT_DIR/_bmad-output/implementation-artifacts/clawbot.log"
+LAUNCHD_PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
+mkdir -p "$LAUNCHAGENTS_DIR"
+
+write_plist() {
+  local out="$1" label="$2" program="$3" interval="$4"
+  cat > "$out" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>${label}</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>${program}</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>${interval}</integer>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>${LOG_PATH}</string>
+    <key>StandardErrorPath</key>
+    <string>${LOG_PATH}</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key>
+      <string>${HOME}</string>
+      <key>PATH</key>
+      <string>${LAUNCHD_PATH}</string>
+    </dict>
+  </dict>
+</plist>
+PLIST
+  plutil -lint "$out" >/dev/null || die "Generated plist failed plutil -lint: $out"
+}
+
+reload_agent() {
+  local label="$1" plist="$2"
+  if launchctl print "gui/$(id -u)/${label}" >/dev/null 2>&1; then
+    launchctl bootout "gui/$(id -u)/${label}" 2>/dev/null || true
+  fi
+  launchctl bootstrap "gui/$(id -u)" "$plist"
+}
+
+write_plist "$TICK_PLIST" "$TICK_LABEL" "$TICK_SCRIPT" 180
+write_plist "$WATCHDOG_PLIST" "$WATCHDOG_LABEL" "$WATCHDOG_SCRIPT" 600
+reload_agent "$TICK_LABEL" "$TICK_PLIST"
+reload_agent "$WATCHDOG_LABEL" "$WATCHDOG_PLIST"
+info "LaunchAgents installed and bootstrapped: $TICK_LABEL (180s), $WATCHDOG_LABEL (600s)"
+
+# Migration: clean up legacy crontab entries if they exist.
 CURRENT_CRONTAB="$(crontab -l 2>/dev/null || true)"
-NEW_CRONTAB="$CURRENT_CRONTAB"
-
-if ! grep -Fq "$TICK_SCRIPT" <<<"$CURRENT_CRONTAB"; then
-  NEW_CRONTAB="$NEW_CRONTAB"$'\n'"$TICK_LINE"
-fi
-if ! grep -Fq "$WATCHDOG_SCRIPT" <<<"$CURRENT_CRONTAB"; then
-  NEW_CRONTAB="$NEW_CRONTAB"$'\n'"$WATCHDOG_LINE"
-fi
-
-if [[ "$NEW_CRONTAB" != "$CURRENT_CRONTAB" ]]; then
-  echo "$NEW_CRONTAB" | crontab -
-  info "Cron entries registered."
-else
-  info "Cron entries already present."
+if grep -Fq -e "$TICK_SCRIPT" -e "$WATCHDOG_SCRIPT" <<<"$CURRENT_CRONTAB"; then
+  REMAINING="$(grep -Fv -e "$TICK_SCRIPT" -e "$WATCHDOG_SCRIPT" <<<"$CURRENT_CRONTAB" || true)"
+  if [[ -z "$REMAINING" ]]; then
+    crontab -r 2>/dev/null || true
+  else
+    echo "$REMAINING" | crontab -
+  fi
+  info "Removed legacy crontab entries for clawbot-tick / clawbot-watchdog."
 fi
 
 # --- 10. Final report ---
@@ -240,9 +294,13 @@ Model strategy:  $MODEL_STRATEGY
 Procedure:       $PROJECT_DIR/memory/claw-loop-procedure.md
 Active-project:  $ETC_DIR/active-project
 
-Cron entries:
-  tick:     $TICK_LINE
-  watchdog: $WATCHDOG_LINE
+LaunchAgents:
+  tick:     $TICK_PLIST          (StartInterval 180s)
+  watchdog: $WATCHDOG_PLIST      (StartInterval 600s)
+
+Inspect with:
+  launchctl print gui/\$(id -u)/$TICK_LABEL
+  launchctl print gui/\$(id -u)/$WATCHDOG_LABEL
 
 Watch Claude Code work live (read-only):
   tmux -S "$CLAWBOT_SOCKET" attach -t $CLAWBOT_SESSION -r
@@ -252,8 +310,5 @@ Control commands:
   $SCRIPT_DIR/clawbot-control.sh pause
   $SCRIPT_DIR/clawbot-control.sh resume
 
-The first cron fire will happen within 3 minutes. Inspect $PROJECT_DIR/_bmad-output/implementation-artifacts/clawbot.log to see headless Claude output.
-
-NOTE: macOS may need Full Disk Access granted to /usr/sbin/cron in
-System Settings → Privacy & Security for the cron job to function.
+The first tick fire will happen within 3 minutes. Inspect $LOG_PATH to see headless Claude output.
 EOF

@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 # clawbot-tick.sh — per-fire driver of the Claw Loop.
-# Invoked by cron every 3 minutes. Captures pane, reads state, applies cheap
-# shell guards (kill-switch + quality gates), then hands off to `claude -p`
-# with lib/procedure.md as the system prompt. The headless Claude does all
-# the heavy lifting via tool calls (Bash for tmux, Read/Write for state, etc.)
+# Invoked every 3 minutes by the ai.clawot.tick LaunchAgent (StartInterval=180).
+# Captures pane, reads state, applies cheap shell guards (kill-switch + quality
+# gates), then hands off to `claude -p` with lib/procedure.md as the system
+# prompt. The headless Claude does all the heavy lifting via tool calls (Bash
+# for tmux, Read/Write for state, etc.)
+#
+# Must run as a user LaunchAgent loaded into gui/$(id -u) so `claude -p` can
+# read its OAuth token from the macOS login keychain. cron jobs run outside
+# the GUI session and will get "Please run /login" instead.
 
 set -euo pipefail
 
-# cron runs with a minimal PATH that omits Homebrew and the user's local bin,
-# so flock/tmux/claude resolve to "command not found". Prepend them here.
+# launchd starts agents with a minimal PATH that omits Homebrew and the user's
+# local bin, so flock/tmux/claude resolve to "command not found". Prepend them here.
 export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/bin:/usr/local/bin:$PATH"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -155,7 +160,7 @@ PANE="$(tmux -S "$CLAWBOT_SOCKET" capture-pane -p -J -t "${CLAWBOT_SESSION}:0.0"
 
 # --- Compose user prompt for headless Claude ---
 STATE_JSON="$(cat "$STATE_FILE")"
-USER_PROMPT="CRON FIRE at $(ts).
+USER_PROMPT="TICK FIRE at $(ts).
 
 STATE_FILE_PATH: $STATE_FILE
 ACTIVITY_LOG: $ACTIVITY_LOG
@@ -175,7 +180,7 @@ Current state:
 $STATE_JSON
 </state>
 
-Execute the cron procedure end-to-end. Update the state file before exiting. Call \$NOTIFIER before exiting. If you ran the Epic Review Gate, ensure you logged EPIC_REVIEW_START/FINDINGS/REMEDIATION/DONE entries as appropriate.
+Execute the tick procedure end-to-end. Update the state file before exiting. Call \$NOTIFIER before exiting. If you ran the Epic Review Gate, ensure you logged EPIC_REVIEW_START/FINDINGS/REMEDIATION/DONE entries as appropriate.
 "
 
 # --- Hand off to headless Claude ---

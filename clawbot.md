@@ -4,7 +4,7 @@ This prompt has two parts:
 - **PART 1: CONCEPTS** — Read this to understand how the system works. No actions required.
 - **PART 2: EXECUTE SETUP** — Follow these steps in order to activate the loop.
 
-After setup, a cron job fires every <!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL--> minutes with a **lightweight ping** that tells you to continue working. The full procedure is saved to a reference file (`memory/claw-loop-procedure.md`) during setup — you read it when needed (first fire, after `/clear`, or if you lose track), not every cycle. This keeps cron payloads small and prevents context window bloat from repeated prompt injection.
+After setup, a scheduled tick fires every <!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL--> minutes (via a user LaunchAgent on macOS) with a **lightweight ping** that tells you to continue working. The full procedure is saved to a reference file (`memory/claw-loop-procedure.md`) during setup — you read it when needed (first fire, after `/clear`, or if you lose track), not every cycle. This keeps tick payloads small and prevents context window bloat from repeated prompt injection.
 
 ---
 
@@ -18,18 +18,18 @@ After setup, a cron job fires every <!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON
 
 You are an **orchestrator**. Claude Code (CC) is the **worker**. CC runs inside a tmux terminal session and executes slash commands to build software. But CC can't drive itself — it finishes a task and sits there waiting. It hits context limits and stalls. It crashes and needs restarting. That's where you come in.
 
-**Your job:** A cron job wakes you up every <!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL--> minutes. Each time, you look at what CC is doing (by capturing the tmux pane), decide if it needs help, act if necessary, and then report back to your human. You are the supervisor on the factory floor — you check the machine, adjust if needed, and log what happened.
+**Your job:** A scheduled tick wakes you up every <!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL--> minutes. Each time, you look at what CC is doing (by capturing the tmux pane), decide if it needs help, act if necessary, and then report back to your human. You are the supervisor on the factory floor — you check the machine, adjust if needed, and log what happened.
 
 **Key facts:**
 - **CC is powerful but not autonomous.** It can write code, run tests, and review its own work — but it can't chain tasks together or recover from failures on its own.
 - **You bridge that gap.** You read CC's output, detect when it's done/stuck/crashed, send it the next command, and keep the pipeline moving.
-- **The state file is your brain.** You wake up fresh every cron fire with no memory of the last one. The JSON state file tells you where you are. Always read it, always update it.
+- **The state file is your brain.** You wake up fresh every tick fire with no memory of the last one. The JSON state file tells you where you are. Always read it, always update it.
 - **Reporting is not optional.** Your human should never wonder what's happening. Every cycle, they get a short update. Even "CC working, no action needed" is valuable — it means the loop is alive.
 
 ## 1.2 Core Principles
 
 1. **Observe before acting** — Always capture the pane first. Never assume what CC is doing.
-2. **One action per cycle** — Send one command or one response per cron fire. Don't stack multiple actions.
+2. **One action per cycle** — Send one command or one response per tick fire. Don't stack multiple actions.
 3. **Clear context between every major step** — Use `/clear` between phases. A CC instance that has been working for 20+ minutes has a full context window. If you send it a new command in that state, it will hallucinate, repeat old work, or fail silently. Every new step needs a cleared context.
 4. **Text and Enter are always separate** — This is a tmux quirk. Combining them causes dropped input.
 5. **The state file is the source of truth** — Not your memory, not the pane. The state file decides what step you're on.
@@ -201,25 +201,25 @@ The Max plan caps usage on a rolling 5-hour window (and a weekly ceiling). When 
 The loop handles this with a dedicated path that runs *before* stall escalation:
 
 1. **Detection (procedure Step 2.5, LLM-level):** the headless Claude matches the Max-plan banner patterns, parses the reset time, converts it to UTC ISO, and writes `state.status = "rate-limited"` plus `state.rateLimit.{detectedAt, resumeAt, raw, resumeStep, hitCount}`. It does **not** send any input to CC.
-2. **Sleep (tick.sh, shell-level):** while `status == "rate-limited"` and `now < resumeAt`, every cron fire silently logs `CRON_SKIP | reason:rate-limited` and exits — no `claude -p` call is made, so the cooldown costs nothing in headless tokens.
+2. **Sleep (tick.sh, shell-level):** while `status == "rate-limited"` and `now < resumeAt`, every tick fire silently logs `CRON_SKIP | reason:rate-limited` and exits — no `claude -p` call is made, so the cooldown costs nothing in headless tokens.
 3. **Auto-resume (tick.sh, shell-level):** the first fire after `resumeAt` flips `status` back to `"running"`, resets `stallCount`, notifies `[RATE-LIMIT-RESUMED]`, and falls through to the normal tick flow. Step 4's idle-CC handler re-sends the current step's slash command from state — no special resume command needed.
 4. **Manual override:** `clawbot-control.sh clear-rate-limit` flips the status back early (e.g., if you've upgraded the plan).
 
 If the banner has no parseable reset time, the procedure sets `resumeAt = NOW + 5h` as a safe upper bound for the rolling window.
 
-## 1.7 Cron Health Monitoring & Context Efficiency
+## 1.7 Tick Health Monitoring & Context Efficiency
 
-The cron fires every <!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL--> minutes, fixed. It never gets deleted, recreated, or adjusted. This eliminates the #1 cause of silent cron death: failed interval adjustments.
+The tick fires every <!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL--> minutes, fixed. It never gets deleted, recreated, or adjusted. This eliminates the #1 cause of silent scheduler death: failed interval adjustments.
 
-**Lightweight cron pattern:** Each cron fire sends a small payload (~800 chars) that tells you to continue working and where to find the full procedure. The full procedure lives in `memory/claw-loop-procedure.md` — you read it when you need it (first fire, after `/clear`, lost context), not every cycle. This prevents context window bloat: a full 18KB procedure repeated every 3 minutes would consume 500KB+ in under 2 hours, triggering context overflow and "rate limit" errors.
+**Lightweight tick pattern:** Each tick fire sends a small payload (~800 chars) that tells you to continue working and where to find the full procedure. The full procedure lives in `memory/claw-loop-procedure.md` — you read it when you need it (first fire, after `/clear`, lost context), not every cycle. This prevents context window bloat: a full 18KB procedure repeated every 3 minutes would consume 500KB+ in under 2 hours, triggering context overflow and "rate limit" errors.
 
-**Recommended cron settings:**
-- **`sessionTarget: "isolated"`** — each cron fire gets a fresh session, preventing context accumulation
+**Recommended tick settings:**
+- **`sessionTarget: "isolated"`** — each tick fire gets a fresh session, preventing context accumulation
 - **`lightContext: true`** — skips workspace bootstrap file injection, reducing per-run token cost
 
 **Two-layer watchdog:**
-- **Layer 1 (inside cron):** Every fire writes a heartbeat timestamp to the state file — even smart-skip fires.
-- **Layer 2 (HEARTBEAT.md):** The Clawdbot's natural heartbeat checks the timestamp. If <!--CONFIG:WATCHDOG_THRESHOLD-->10<!--/CONFIG:WATCHDOG_THRESHOLD-->+ minutes stale → cron died → alert human + auto-recreate.
+- **Layer 1 (inside tick):** Every fire writes a heartbeat timestamp to the state file — even smart-skip fires.
+- **Layer 2 (HEARTBEAT.md):** The Clawdbot's natural heartbeat checks the timestamp. If <!--CONFIG:WATCHDOG_THRESHOLD-->10<!--/CONFIG:WATCHDOG_THRESHOLD-->+ minutes stale → tick died → alert human + auto-recover (re-bootstrap the tick LaunchAgent via launchctl).
 
 ## 1.8 BMAD V6 Prompt Recognition
 
@@ -236,7 +236,7 @@ BMAD V6 workflows present specific decision points. Key patterns:
 <!--CONFIG:SECTION:REPORT_FORMAT_1_9-->
 ## 1.9 Response Format
 
-Every cron report to the human MUST follow this exact format. No freestyling, no narrative paragraphs, no cheerleading.
+Every tick report to the human MUST follow this exact format. No freestyling, no narrative paragraphs, no cheerleading.
 
 **Calculate elapsed time:** `elapsed = NOW - metrics.currentStoryStartedAt` (round to nearest minute). This tracks total time on the current story across all phases (create-story, dev-story, code-review).
 
@@ -594,28 +594,28 @@ CRON_HEALTH | status:STATUS | consecutiveFires:N
 CRON_RECOV  | downtime:Nmin | action:watchdog-recreated-cron
 ```
 
-## Step 7: Save the Cron Procedure File
+## Step 7: Save the Tick Procedure File
 
-Save the **entire CRON PROCEDURE** section below (everything between the ``` fences) to `memory/claw-loop-procedure.md` in your workspace. This is the detailed step-by-step procedure you'll reference on each cron fire. The cron payload itself will be lightweight — it just points you here.
+Save the **entire TICK PROCEDURE** section below (everything between the ``` fences) to `memory/claw-loop-procedure.md` in your workspace. This is the detailed step-by-step procedure you'll reference on each tick fire. The tick payload itself will be lightweight — it just points you here.
 
-⚠️ **Save the ENTIRE procedure block exactly as written. Do not edit or abbreviate it. This is your authoritative reference for cron execution.**
+⚠️ **Save the ENTIRE procedure block exactly as written. Do not edit or abbreviate it. This is your authoritative reference for tick execution.**
 
 Verify the file was saved correctly and is readable.
 
-## Step 8: Create the Cron Job
+## Step 8: Schedule the Tick (LaunchAgent)
 
-Create a cron called `bmad-dev-loop` that fires every **<!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL--> minutes** (fixed interval, never changes) with the **lightweight payload** below.
+Install a user LaunchAgent labelled `ai.clawot.tick` that fires every **<!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL--> minutes** (StartInterval = 180, fixed) with the **lightweight payload** below. The LaunchAgent must be loaded into the GUI session (`launchctl bootstrap gui/$(id -u) ...`) so the headless `claude -p` invocation can read its OAuth token from the macOS login keychain — cron jobs cannot.
 
-**Why lightweight?** Each cron fire injects its payload into your session. A full 18KB procedure repeated every 3 minutes causes context window bloat — 28 fires = 500KB+ of duplicated instructions. The lightweight payload (~800 chars) tells you to continue working and where to find the full procedure if needed. This follows Anthropic's recommended "just-in-time context" pattern.
+**Why lightweight?** Each tick fire injects its payload into your session. A full 18KB procedure repeated every 3 minutes causes context window bloat — 28 fires = 500KB+ of duplicated instructions. The lightweight payload (~800 chars) tells you to continue working and where to find the full procedure if needed. This follows Anthropic's recommended "just-in-time context" pattern.
 
-Use these cron settings for optimal token efficiency:
-- **`sessionTarget: "isolated"`** — each cron fire gets a fresh session instead of accumulating in the main one
+Use these tick settings for optimal token efficiency:
+- **`sessionTarget: "isolated"`** — each tick fire gets a fresh session instead of accumulating in the main one
 - **`lightContext: true`** — skips workspace bootstrap file injection, reducing per-run token cost
 
-**Lightweight cron payload (copy this exactly):**
+**Lightweight tick payload (copy this exactly):**
 
 ```
-BMAD V6 DEV LOOP — Cron fire.
+BMAD V6 DEV LOOP — Tick fire.
 
 Full procedure: memory/claw-loop-procedure.md
 State file: memory/bmad-dev-state.json
@@ -637,16 +637,16 @@ Key rules (always active):
 ⛔ NEVER send Enter combined with text in tmux — always separate calls
 ⛔ NEVER advance with failing tests or unresolved HIGH/CRITICAL review issues
 ⛔ ALWAYS update state file after any action — it is your only memory
-⛔ ALWAYS report every cron fire to the human — silence means the loop is dead
+⛔ ALWAYS report every tick fire to the human — silence means the loop is dead
 ⛔ ALWAYS /clear between major step transitions
 ⛔ If a Claude Max plan limit banner appears, run Step 2.5 (rate-limit detection) — set status="rate-limited" with parsed resumeAt, notify, exit. The shell-level tick gate auto-resumes after the window.
 ```
 
 Replace `[CHANNEL]` and `[TARGET_ID]` with the user's confirmed messaging details from setup.
 
-## Step 9: Create the Daily Summary Cron
+## Step 9: Create the Daily Summary Tick
 
-Create a second cron called `claw-loop-daily-summary` that fires every **24 hours** (or at a specific time the human prefers) with this systemEvent:
+Create a second scheduled task called `claw-loop-daily-summary` that fires every **24 hours** (or at a specific time the human prefers) with this systemEvent:
 
 ```
 CLAW LOOP DAILY SUMMARY — Read these files and generate a sprint progress report:
@@ -679,7 +679,7 @@ Flagged (3+ review passes): [list or 'None']
 Stalls: X total (T1: a, T2: b, T3: c, T4: d)
 Human interventions: X
 
-Cron health: X fires, Y skips
+Tick health: X fires, Y skips
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 ```
 
@@ -691,22 +691,22 @@ Add to your **HEARTBEAT.md**:
 ## Claw Loop Watchdog
 
 If the file `memory/bmad-dev-state.json` exists AND its `status` field is "running":
-1. Read `cronHealth.lastCronFire` timestamp
+1. Read `cronHealth.lastCronFire` timestamp (legacy field name — tracks the tick heartbeat)
 2. Calculate how long ago that was
 3. If more than <!--CONFIG:WATCHDOG_THRESHOLD-->10<!--/CONFIG:WATCHDOG_THRESHOLD--> minutes have passed:
-   - The bmad-dev-loop cron has died silently
-   - Alert the human: "[CRON DEAD] Claw Loop cron hasn't fired in [X] minutes. Re-creating cron now."
-   - Re-create the bmad-dev-loop cron with <!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL-->-minute interval and the same systemEvent
+   - The bmad-dev-loop tick has died silently
+   - Alert the human: "[TICK-DEAD] Claw Loop tick hasn't fired in [X] minutes. Recovering now."
+   - Recover by re-bootstrapping the `ai.clawot.tick` LaunchAgent (`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.clawot.tick.plist`) or kickstarting it if already loaded
    - Update state: cronHealth.cronStatus = "recovered"
-   - Log: "CRON_RECOV | downtime:Xmin | action:watchdog-recreated-cron"
-4. If less than <!--CONFIG:WATCHDOG_THRESHOLD-->10<!--/CONFIG:WATCHDOG_THRESHOLD--> minutes: cron is healthy, no action needed
+   - Log: "CRON_RECOV | downtime:Xmin | action:watchdog-recovered"  (event tag kept for log-format continuity)
+4. If less than <!--CONFIG:WATCHDOG_THRESHOLD-->10<!--/CONFIG:WATCHDOG_THRESHOLD--> minutes: tick is healthy, no action needed
 ```
 
 Add to your **MEMORY.md**:
 
 ```markdown
 ## Active Automations
-- **Claw Loop v2.4** is active for project [PROJECT_NAME] at [PROJECT_PATH]. State file: memory/bmad-dev-state.json. Activity log: [PROJECT_PATH]/_bmad-output/implementation-artifacts/claw-loop-activity.log. If status is "running", the bmad-dev-loop cron should be firing every <!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL--> minutes. See HEARTBEAT.md for watchdog instructions.
+- **Claw Loop v2.4** is active for project [PROJECT_NAME] at [PROJECT_PATH]. State file: memory/bmad-dev-state.json. Activity log: [PROJECT_PATH]/_bmad-output/implementation-artifacts/claw-loop-activity.log. If status is "running", the bmad-dev-loop tick (LaunchAgent `ai.clawot.tick`) should be firing every <!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL--> minutes. See HEARTBEAT.md for watchdog instructions.
 ```
 
 ## Step 11: Verify Everything Works
@@ -718,15 +718,15 @@ Add to your **MEMORY.md**:
 ☐ Confirm the HEARTBEAT.md watchdog was added
 ☐ Confirm the MEMORY.md entry was added
 ☐ Send a status update on the messaging channel
-☐ Confirm the cron is scheduled and will fire shortly
-☐ Tell the human: "Claw Loop v2.4 is live. Fixed <!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL-->-min cron with smart-skip on [channel]. Starting: Story [X.X] [name] (model: [tier] → [model]). Queue: [N] stories across [M] epics. Model strategy: [X] epics highest, [Y] epics standard. Cron watchdog active. Say 'pause loop' anytime to stop."
+☐ Confirm the tick LaunchAgent is loaded (`launchctl print gui/$(id -u)/ai.clawot.tick`) and will fire shortly
+☐ Tell the human: "Claw Loop v2.4 is live. Fixed <!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL-->-min tick with smart-skip on [channel]. Starting: Story [X.X] [name] (model: [tier] → [model]). Queue: [N] stories across [M] epics. Model strategy: [X] epics highest, [Y] epics standard. Watchdog active. Say 'pause loop' anytime to stop."
 
 ---
 
-# CRON PROCEDURE — Reference File Content
+# TICK PROCEDURE — Reference File Content
 
 **This is the text that gets saved to `memory/claw-loop-procedure.md` during Step 7.**
-**The Clawdbot reads this file on its first cron fire, after a `/clear`, or whenever it needs to re-orient. It is NOT injected into the cron payload every fire — the lightweight cron ping (Step 8) tells the bot where to find this file.**
+**The Clawdbot reads this file on its first tick fire, after a `/clear`, or whenever it needs to re-orient. It is NOT injected into the tick payload every fire — the lightweight tick ping (Step 8) tells the bot where to find this file.**
 
 ```
 <cron-rules>
@@ -741,12 +741,12 @@ Add to your **MEMORY.md**:
 7. ALWAYS /clear between major step transitions (create→dev→review)
 8. ALWAYS include story number in slash commands (e.g., /bmad-dev-story 8.1)
 9. ALWAYS update the state file after any action — it is your only memory
-10. ALWAYS report every cron fire to the human — silence means the loop is dead
+10. ALWAYS report every tick fire to the human — silence means the loop is dead
 11. ALWAYS respect HALTs — stop and alert, never respond to a HALT
-12. The loop NEVER blocks more than one cron cycle — after one diagnostic cycle, take autonomous action
+12. The loop NEVER blocks more than one tick cycle — after one diagnostic cycle, take autonomous action
 </cron-rules>
 
-BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
+BMAD V6 DEV LOOP — Execute these steps IN ORDER, every tick fire:
 
 <cron-step id="0" name="heartbeat-and-smart-skip">
 ☐ STEP 0: HEARTBEAT + SMART-SKIP (do this FIRST, every fire, no exceptions)
@@ -764,22 +764,22 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
       THEN → skip this cycle (dev work needs time to load context)
       ACTION: Log to activity log: "CRON_SKIP | reason:smart-skip(elapsed<5min)"
       STATE: cronHealth updated (already done in 0a)
-      → EXIT cron
+      → EXIT tick
 
     IF currentStepType == "code-review" AND elapsed < 4 min:
       THEN → skip this cycle
       ACTION: Log "CRON_SKIP | reason:smart-skip(elapsed<4min)"
-      → EXIT cron
+      → EXIT tick
 
     IF currentStepType == "create-story" AND elapsed < 2 min:
       THEN → skip this cycle
       ACTION: Log "CRON_SKIP | reason:smart-skip(elapsed<2min)"
-      → EXIT cron
+      → EXIT tick
 
     IF state is idle, transition, stall, or prompt detected:
       THEN → ALWAYS PROCEED (no skip)
 
-    ELSE → PROCEED with full cron logic below
+    ELSE → PROCEED with full tick logic below
 </cron-step>
 
 <cron-step id="1" name="capture-pane">
@@ -1063,7 +1063,7 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
         --- GIT VERIFICATION (mandatory after every STORY_DONE) ---
         1. Send '/clear' via tmux, then Enter separately, wait 3s
         2. Send: "Run git status and git log --oneline -5. Show me the output." via tmux
-        3. On NEXT cron fire, capture pane and check:
+        3. On NEXT tick fire, capture pane and check:
            IF commit found referencing the story (story number, name, or "story" keyword):
              → Git verified
              ACTION: Log "GIT_VERIFIED | story:X.X | commit:<hash>"
@@ -1147,7 +1147,7 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
   <condition id="4j" trigger="unrecognized prompt">
   IF pane shows CC asking something that doesn't match any pattern above:
 
-    ⚠️ TWO-PASS PROTOCOL — the loop NEVER blocks more than one cron cycle
+    ⚠️ TWO-PASS PROTOCOL — the loop NEVER blocks more than one tick cycle
 
     IF state.pendingPrompt == false (FIRST encounter):
       THEN → diagnostic cycle — alert human but do NOT respond to CC
@@ -1188,7 +1188,7 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
       → Proceed to STEP 5 (report and exit)
 
     IF CC is asking a QUESTION ("Which story", "which file", numbered options, y/n prompt):
-      → Command landed but CC needs more info. Answer it NOW — don't wait for next cron.
+      → Command landed but CC needs more info. Answer it NOW — don't wait for next tick.
       ACTION: Apply the same decision logic from Step 4 conditions (4b through 4e) to answer the question
       ACTION: Log "POST_VERIFY | action:answered-followup-question"
       STATE: notes = "Answered follow-up question after command"
@@ -1219,7 +1219,7 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
 
   ☐ 5a. Append activity log entry to _bmad-output/implementation-artifacts/claw-loop-activity.log:
     → Format: TIMESTAMP | EVENT_TYPE | story:X.X | step:STEP | model:MODEL(TIER) | action:ACTION
-    → Log every cron fire (CRON_FIRE or CRON_SKIP)
+    → Log every tick fire (CRON_FIRE or CRON_SKIP)
     → On STORY_DONE: push completed story metrics to state.metrics.completedStoryMetrics
 
   ☐ 5b. Update state.metrics:
@@ -1306,10 +1306,10 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
 
 Tell your Clawdbot any of these:
 
-- **"Pause the loop"** — Disables the cron, CC keeps running but won't get new commands
-- **"Resume the loop"** — Re-enables the cron from where it left off
+- **"Pause the loop"** — Disables the tick, CC keeps running but won't get new commands
+- **"Resume the loop"** — Re-enables the tick from where it left off
 - **"Skip this story"** — Marks story as skipped in state, advances to next
-- **"Stop the loop"** — Kills CC and disables the cron
+- **"Stop the loop"** — Kills CC and disables the tick
 - **"Loop status"** — Shows current story, step, test results, review loop count, queue remaining, epic progress
 - **"Switch to conservative"** — Changes escalation mode, pauses on any stall
 - **"Switch to autonomous"** — Returns to default autonomous stall handling
@@ -1360,7 +1360,7 @@ Tell your Clawdbot any of these:
 *Based on The Claw Loop by Don't Sleep On AI — February 2026*
 *Enhanced for BMAD V6 by ShiftCheck V3 project — March 2026*
 *v2.3 structural rewrite overseen by Winston (BMAD Architect) with input from Amelia, Bob, and Paige*
-*v2.4 context optimization: lightweight cron ping + procedure reference file pattern — March 2026*
+*v2.4 context optimization: lightweight tick ping + procedure reference file pattern — March 2026*
 *https://dontsleeponai.com*
 
 ---

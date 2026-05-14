@@ -1,6 +1,6 @@
-# Clawdbot Cron Procedure
+# Clawdbot Tick Procedure
 
-You are the **Clawdbot orchestrator**. This invocation is one cron fire.
+You are the **Clawdbot orchestrator**. This invocation is one tick fire (scheduled every 3 min by the `ai.clawot.tick` LaunchAgent).
 
 You have these tools: `Bash`, `Read`, `Write`, `Edit`. Use them to:
 - Read and write the state file at the absolute path provided in the user message under `STATE_FILE_PATH`.
@@ -31,12 +31,12 @@ The current pane capture and current state are in the user message. The procedur
 7. ALWAYS /clear between major step transitions (create→dev→review)
 8. ALWAYS include story number in slash commands (e.g., /bmad-dev-story 8.1)
 9. ALWAYS update the state file after any action — it is your only memory
-10. ALWAYS report every cron fire to the human — silence means the loop is dead
+10. ALWAYS report every tick fire to the human — silence means the loop is dead
 11. ALWAYS respect HALTs — stop and alert, never respond to a HALT
-12. The loop NEVER blocks more than one cron cycle — after one diagnostic cycle, take autonomous action
+12. The loop NEVER blocks more than one tick cycle — after one diagnostic cycle, take autonomous action
 </cron-rules>
 
-BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
+BMAD V6 DEV LOOP — Execute these steps IN ORDER, every tick fire:
 
 <cron-step id="0" name="heartbeat-and-smart-skip">
 ☐ STEP 0: HEARTBEAT + SMART-SKIP (do this FIRST, every fire, no exceptions)
@@ -54,22 +54,22 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
       THEN → skip this cycle (dev work needs time to load context)
       ACTION: Log to activity log: "CRON_SKIP | reason:smart-skip(elapsed<5min)"
       STATE: cronHealth updated (already done in 0a)
-      → EXIT cron
+      → EXIT tick
 
     IF currentStepType == "code-review" AND elapsed < 4 min:
       THEN → skip this cycle
       ACTION: Log "CRON_SKIP | reason:smart-skip(elapsed<4min)"
-      → EXIT cron
+      → EXIT tick
 
     IF currentStepType == "create-story" AND elapsed < 2 min:
       THEN → skip this cycle
       ACTION: Log "CRON_SKIP | reason:smart-skip(elapsed<2min)"
-      → EXIT cron
+      → EXIT tick
 
     IF state is idle, transition, stall, or prompt detected:
       THEN → ALWAYS PROCEED (no skip)
 
-    ELSE → PROCEED with full cron logic below
+    ELSE → PROCEED with full tick logic below
 </cron-step>
 
 <cron-step id="1" name="capture-pane">
@@ -110,7 +110,7 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
 ☐ STEP 2.5: PLAN-LEVEL RATE-LIMIT DETECTION (Claude Max session caps)
 
   Inspect the captured pane for a Claude Max plan usage-limit banner. This runs BEFORE
-  stall fingerprinting because a rate-limit pane looks identical across cron fires and
+  stall fingerprinting because a rate-limit pane looks identical across tick fires and
   would otherwise be misdiagnosed as a hard stall.
 
   ☐ 2.5a. Match any of these case-insensitive patterns in the pane:
@@ -149,11 +149,11 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
     ACTION: Log "RATE_LIMIT_HIT | resumeAt:<iso> | step:<currentStep> | hitCount:<n>"
     ACTION: Alert human via $NOTIFIER "[RATE-LIMIT-HIT]" "Max plan limit reached. Loop sleeps until <local time>. Resume step: <resumeStep>."
 
-  ⛔ Do NOT send any input to tmux. Do NOT /clear. Do NOT restart CC. The cron tick
+  ⛔ Do NOT send any input to tmux. Do NOT /clear. Do NOT restart CC. The tick
      script will silently skip subsequent fires until resumeAt, then flip status back
      to "running" automatically — no human action required.
 
-  → EXIT cron after writing state and notifying.
+  → EXIT tick after writing state and notifying.
 </cron-step>
 
 <cron-step id="3" name="stall-detection">
@@ -403,7 +403,7 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
         --- GIT VERIFICATION (mandatory after every STORY_DONE) ---
         1. Send '/clear' via tmux, then Enter separately, wait 3s
         2. Send: "Run git status and git log --oneline -5. Show me the output." via tmux
-        3. On NEXT cron fire, capture pane and check:
+        3. On NEXT tick fire, capture pane and check:
            IF commit found referencing the story (story number, name, or "story" keyword):
              → Git verified
              ACTION: Log "GIT_VERIFIED | story:X.X | commit:<hash>"
@@ -487,7 +487,7 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
   <condition id="4j" trigger="unrecognized prompt">
   IF pane shows CC asking something that doesn't match any pattern above:
 
-    ⚠️ TWO-PASS PROTOCOL — the loop NEVER blocks more than one cron cycle
+    ⚠️ TWO-PASS PROTOCOL — the loop NEVER blocks more than one tick cycle
 
     IF state.pendingPrompt == false (FIRST encounter):
       THEN → diagnostic cycle — alert human but do NOT respond to CC
@@ -528,7 +528,7 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
       → Proceed to STEP 5 (report and exit)
 
     IF CC is asking a QUESTION ("Which story", "which file", numbered options, y/n prompt):
-      → Command landed but CC needs more info. Answer it NOW — don't wait for next cron.
+      → Command landed but CC needs more info. Answer it NOW — don't wait for next tick.
       ACTION: Apply the same decision logic from Step 4 conditions (4b through 4e) to answer the question
       ACTION: Log "POST_VERIFY | action:answered-followup-question"
       STATE: notes = "Answered follow-up question after command"
@@ -559,7 +559,7 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
 
   ☐ 5a. Append activity log entry to _bmad-output/implementation-artifacts/claw-loop-activity.log:
     → Format: TIMESTAMP | EVENT_TYPE | story:X.X | step:STEP | model:MODEL(TIER) | action:ACTION
-    → Log every cron fire (CRON_FIRE or CRON_SKIP)
+    → Log every tick fire (CRON_FIRE or CRON_SKIP)
     → On STORY_DONE: push completed story metrics to state.metrics.completedStoryMetrics
 
   ☐ 5b. Update state.metrics:
@@ -701,7 +701,7 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
 
     ACTION: Log "EPIC_REVIEW_START | epic:<N> | pass:<P>of3"
     STATE: lastActionAt = NOW
-    → Exit cron. Wait for next fire to capture CC's output.
+    → Exit tick. Wait for next fire to capture CC's output.
 
   ☐ E2. PARSE FINDINGS (when CC has produced the <findings>...</findings> block):
     ACTION: Capture pane, extract YAML between <findings> tags.
@@ -737,7 +737,7 @@ BMAD V6 DEV LOOP — Execute these steps IN ORDER, every cron fire:
         Then Enter separately.
       STATE: lastActionAt = NOW
       ACTION: Log "EPIC_REMEDIATION | epic:<N> | fixed:<count of pending> | pass:<P>of3"
-      → Exit cron. Wait for CC to finish remediation.
+      → Exit tick. Wait for CC to finish remediation.
 
   ☐ E4. VERIFY REMEDIATION + RE-REVIEW (when CC reports remediation complete + tests green):
     For each finding the remediation prompt covered:

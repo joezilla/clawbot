@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# clawbot-watchdog.sh — secondary cron that detects a dead tick cron and recovers it.
-# Fires on a separate schedule (default every 10 min). Compares the lastCronFire
-# heartbeat in state.json against current time; if stale > 10 min while status==running,
-# notifies the human and re-registers the tick crontab entry.
+# clawbot-watchdog.sh — secondary scheduled task that detects a dead tick and recovers it.
+# Fires on its own schedule (every 10 min via the ai.clawot.watchdog LaunchAgent).
+# Compares the lastCronFire heartbeat in state.json against current time; if stale > 10 min
+# while status==running, notifies the human and kicks/re-bootstraps the tick LaunchAgent.
 
 set -euo pipefail
 
-# cron runs with a minimal PATH that omits Homebrew and the user's local bin.
+# launchd starts agents with a minimal PATH that omits Homebrew and the user's local bin.
 export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/bin:/usr/local/bin:$PATH"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,6 +14,8 @@ INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
 ACTIVE_FILE="$INSTALL_DIR/etc/active-project"
 NOTIFY="$SCRIPT_DIR/clawbot-notify.sh"
 TICK_SCRIPT="$SCRIPT_DIR/clawbot-tick.sh"
+TICK_PLIST="$HOME/Library/LaunchAgents/ai.clawot.tick.plist"
+TICK_LABEL="ai.clawot.tick"
 
 WATCHDOG_THRESHOLD_MIN=10
 
@@ -53,20 +55,26 @@ if [[ "$ELAPSED_MIN" -le "$WATCHDOG_THRESHOLD_MIN" ]]; then
   exit 0  # healthy
 fi
 
-# Stale → recover.
+# Stale → recover. If the tick LaunchAgent isn't loaded, bootstrap it; otherwise
+# force a fire with launchctl kickstart. (Activity-log tag stays CRON_RECOV for
+# grep continuity with older logs.)
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-printf '%s | CRON_RECOV | downtime:%dmin | action:watchdog-recreated-cron\n' "$TS" "$ELAPSED_MIN" >> "$ACTIVITY_LOG"
-
-# Re-register the tick crontab entry if it's missing.
-CRON_LINE="*/3 * * * * $TICK_SCRIPT >> $PROJECT_DIR/_bmad-output/implementation-artifacts/clawbot.log 2>&1"
-CURRENT_CRONTAB="$(crontab -l 2>/dev/null || true)"
-if ! grep -Fq "$TICK_SCRIPT" <<<"$CURRENT_CRONTAB"; then
-  ( echo "$CURRENT_CRONTAB"; echo "$CRON_LINE" ) | crontab -
+RECOV_ACTION="kickstart"
+if ! launchctl print "gui/$(id -u)/${TICK_LABEL}" >/dev/null 2>&1; then
+  if [[ -f "$TICK_PLIST" ]]; then
+    launchctl bootstrap "gui/$(id -u)" "$TICK_PLIST" 2>/dev/null || true
+    RECOV_ACTION="bootstrap"
+  else
+    RECOV_ACTION="plist-missing"
+  fi
+else
+  launchctl kickstart "gui/$(id -u)/${TICK_LABEL}" 2>/dev/null || true
 fi
+printf '%s | CRON_RECOV | downtime:%dmin | action:watchdog-%s\n' "$TS" "$ELAPSED_MIN" "$RECOV_ACTION" >> "$ACTIVITY_LOG"
 
-# Mark cron as recovered in state.
+# Mark tick health as recovered in state.
 TMP="$(mktemp)"
 jq --arg ts "$TS" '.cronHealth.cronStatus = "recovered" | .cronHealth.lastSkipReason = null | .lastUpdated = $ts' "$STATE_FILE" > "$TMP"
 mv "$TMP" "$STATE_FILE"
 
-"$NOTIFY" "[CRON-DEAD]" "Tick cron hasn't fired in ${ELAPSED_MIN} min. Re-registered crontab entry."
+"$NOTIFY" "[TICK-DEAD]" "Tick hasn't fired in ${ELAPSED_MIN} min. Recovery: ${RECOV_ACTION}."
