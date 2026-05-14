@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # clawbot-watchdog.sh — secondary scheduled task that detects a dead tick and recovers it.
-# Fires on its own schedule (every 10 min via the ai.clawot.watchdog LaunchAgent).
+# Fires on its own schedule (every 10 min via the ai.clawbot.watchdog LaunchAgent).
 # Compares the lastCronFire heartbeat in state.json against current time; if stale > 10 min
 # while status==running, notifies the human and kicks/re-bootstraps the tick LaunchAgent.
 
@@ -14,8 +14,8 @@ INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
 ACTIVE_FILE="$INSTALL_DIR/etc/active-project"
 NOTIFY="$SCRIPT_DIR/clawbot-notify.sh"
 TICK_SCRIPT="$SCRIPT_DIR/clawbot-tick.sh"
-TICK_PLIST="$HOME/Library/LaunchAgents/ai.clawot.tick.plist"
-TICK_LABEL="ai.clawot.tick"
+TICK_PLIST="$HOME/Library/LaunchAgents/ai.clawbot.tick.plist"
+TICK_LABEL="ai.clawbot.tick"
 
 WATCHDOG_THRESHOLD_MIN=10
 

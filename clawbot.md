@@ -604,7 +604,7 @@ Verify the file was saved correctly and is readable.
 
 ## Step 8: Schedule the Tick (LaunchAgent)
 
-Install a user LaunchAgent labelled `ai.clawot.tick` that fires every **<!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL--> minutes** (StartInterval = 180, fixed) with the **lightweight payload** below. The LaunchAgent must be loaded into the GUI session (`launchctl bootstrap gui/$(id -u) ...`) so the headless `claude -p` invocation can read its OAuth token from the macOS login keychain — cron jobs cannot.
+Install a user LaunchAgent labelled `ai.clawbot.tick` that fires every **<!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL--> minutes** (StartInterval = 180, fixed) with the **lightweight payload** below. The LaunchAgent must be loaded into the GUI session (`launchctl bootstrap gui/$(id -u) ...`) so the headless `claude -p` invocation can read its OAuth token from the macOS login keychain — cron jobs cannot.
 
 **Why lightweight?** Each tick fire injects its payload into your session. A full 18KB procedure repeated every 3 minutes causes context window bloat — 28 fires = 500KB+ of duplicated instructions. The lightweight payload (~800 chars) tells you to continue working and where to find the full procedure if needed. This follows Anthropic's recommended "just-in-time context" pattern.
 
@@ -696,7 +696,7 @@ If the file `memory/bmad-dev-state.json` exists AND its `status` field is "runni
 3. If more than <!--CONFIG:WATCHDOG_THRESHOLD-->10<!--/CONFIG:WATCHDOG_THRESHOLD--> minutes have passed:
    - The bmad-dev-loop tick has died silently
    - Alert the human: "[TICK-DEAD] Claw Loop tick hasn't fired in [X] minutes. Recovering now."
-   - Recover by re-bootstrapping the `ai.clawot.tick` LaunchAgent (`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.clawot.tick.plist`) or kickstarting it if already loaded
+   - Recover by re-bootstrapping the `ai.clawbot.tick` LaunchAgent (`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.clawbot.tick.plist`) or kickstarting it if already loaded
    - Update state: cronHealth.cronStatus = "recovered"
    - Log: "CRON_RECOV | downtime:Xmin | action:watchdog-recovered"  (event tag kept for log-format continuity)
 4. If less than <!--CONFIG:WATCHDOG_THRESHOLD-->10<!--/CONFIG:WATCHDOG_THRESHOLD--> minutes: tick is healthy, no action needed
@@ -706,7 +706,7 @@ Add to your **MEMORY.md**:
 
 ```markdown
 ## Active Automations
-- **Claw Loop v2.4** is active for project [PROJECT_NAME] at [PROJECT_PATH]. State file: memory/bmad-dev-state.json. Activity log: [PROJECT_PATH]/_bmad-output/implementation-artifacts/claw-loop-activity.log. If status is "running", the bmad-dev-loop tick (LaunchAgent `ai.clawot.tick`) should be firing every <!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL--> minutes. See HEARTBEAT.md for watchdog instructions.
+- **Claw Loop v2.4** is active for project [PROJECT_NAME] at [PROJECT_PATH]. State file: memory/bmad-dev-state.json. Activity log: [PROJECT_PATH]/_bmad-output/implementation-artifacts/claw-loop-activity.log. If status is "running", the bmad-dev-loop tick (LaunchAgent `ai.clawbot.tick`) should be firing every <!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL--> minutes. See HEARTBEAT.md for watchdog instructions.
 ```
 
 ## Step 11: Verify Everything Works
@@ -718,7 +718,7 @@ Add to your **MEMORY.md**:
 ☐ Confirm the HEARTBEAT.md watchdog was added
 ☐ Confirm the MEMORY.md entry was added
 ☐ Send a status update on the messaging channel
-☐ Confirm the tick LaunchAgent is loaded (`launchctl print gui/$(id -u)/ai.clawot.tick`) and will fire shortly
+☐ Confirm the tick LaunchAgent is loaded (`launchctl print gui/$(id -u)/ai.clawbot.tick`) and will fire shortly
 ☐ Tell the human: "Claw Loop v2.4 is live. Fixed <!--CONFIG:CRON_INTERVAL-->3<!--/CONFIG:CRON_INTERVAL-->-min tick with smart-skip on [channel]. Starting: Story [X.X] [name] (model: [tier] → [model]). Queue: [N] stories across [M] epics. Model strategy: [X] epics highest, [Y] epics standard. Watchdog active. Say 'pause loop' anytime to stop."
 
 ---

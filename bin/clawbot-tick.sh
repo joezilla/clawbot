@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # clawbot-tick.sh — per-fire driver of the Claw Loop.
-# Invoked every 3 minutes by the ai.clawot.tick LaunchAgent (StartInterval=180).
+# Invoked every 3 minutes by the ai.clawbot.tick LaunchAgent (StartInterval=180).
 # Captures pane, reads state, applies cheap shell guards (kill-switch + quality
 # gates), then hands off to `claude -p` with lib/procedure.md as the system
 # prompt. The headless Claude does all the heavy lifting via tool calls (Bash

@@ -20,7 +20,7 @@ It detects when CC is working, idle, prompting, stalled, context-overflowed, cra
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  launchd LaunchAgent ai.clawot.tick (StartInterval 180s)            │
+│  launchd LaunchAgent ai.clawbot.tick (StartInterval 180s)            │
 │     ↓                                                               │
 │  bin/clawbot-tick.sh                                                │
 │     • acquire flock                                                 │
@@ -49,14 +49,14 @@ It detects when CC is working, idle, prompting, stalled, context-overflowed, cra
    of truth)               trail)                     Claude Code runs)
 ```
 
-A second LaunchAgent (`ai.clawot.watchdog`, StartInterval 600s) runs `clawbot-watchdog.sh` to check the heartbeat and re-bootstrap the tick agent if it's been silent for 10+ minutes.
+A second LaunchAgent (`ai.clawbot.watchdog`, StartInterval 600s) runs `clawbot-watchdog.sh` to check the heartbeat and re-bootstrap the tick agent if it's been silent for 10+ minutes.
 
 > **Why launchd, not cron?** `claude` stores its login token in the macOS login keychain. cron jobs run outside the user's GUI session and can't unlock it — so a cron-launched `claude -p` reports "Please run /login" even when you *are* logged in. User LaunchAgents loaded into `gui/<uid>` have keychain access, so the tick works.
 
 ## Repo layout
 
 ```
-clawot/
+clawbot/
 ├── bin/
 │   ├── clawbot-setup.sh       one-time bootstrap for a BMAD project
 │   ├── clawbot-tick.sh        per-tick-fire driver (the hot path)
@@ -109,7 +109,7 @@ This:
 4. Copies `lib/procedure.md` into the project's `memory/` directory
 5. Renders `memory/bmad-dev-state.json` from `lib/state.template.json`, seeded from `sprint-status.yaml` (resumes at the first non-done story)
 6. Seeds `claw-loop-model-strategy.yaml` with safe "all-highest" defaults
-7. Installs and bootstraps the `ai.clawot.tick` (StartInterval 180s) and `ai.clawot.watchdog` (StartInterval 600s) LaunchAgents into `gui/$(id -u)`
+7. Installs and bootstraps the `ai.clawbot.tick` (StartInterval 180s) and `ai.clawbot.watchdog` (StartInterval 600s) LaunchAgents into `gui/$(id -u)`
 8. Prints the read-only tmux attach command
 
 The first tick fire happens within 3 minutes.
@@ -268,9 +268,9 @@ If the YAML is missing or malformed, the procedure falls back to "all-highest" a
 
 | Symptom | Where to look |
 |---|---|
-| Nothing happening for 10+ minutes | `clawbot-control.sh status` — check `Last tick`; watchdog re-bootstraps a dead `ai.clawot.tick` LaunchAgent automatically every 10 min |
+| Nothing happening for 10+ minutes | `clawbot-control.sh status` — check `Last tick`; watchdog re-bootstraps a dead `ai.clawbot.tick` LaunchAgent automatically every 10 min |
 | `[TICK-ERROR]` Tmux session missing | Run `bin/clawbot-setup.sh <project>` again — recreates the session |
-| `claude -p` reports "Please run /login" in `clawbot.log` | The tick must run under a LaunchAgent loaded into `gui/$(id -u)`, not from cron — cron jobs can't unlock the login keychain. Verify with `launchctl print gui/$(id -u)/ai.clawot.tick`; if it shows "Could not find service," re-run setup |
+| `claude -p` reports "Please run /login" in `clawbot.log` | The tick must run under a LaunchAgent loaded into `gui/$(id -u)`, not from cron — cron jobs can't unlock the login keychain. Verify with `launchctl print gui/$(id -u)/ai.clawbot.tick`; if it shows "Could not find service," re-run setup |
 | Repeated `[QUALITY-GATE-CORRECTION]` | Epic-review found pending auto-fixes but the LLM drifted off the gate; shell forces it back to `epic-remediation`. If this loops, run `clawbot-control.sh findings` to see the open items |
 | Loop stuck in `human-review-needed` | A story has failed 3+ times. Inspect the activity log around the last STORY/STALL_T4 entry, fix the underlying issue (or `quarantine` the story), then `resume` |
 | `[RATE-LIMIT-HIT]` | Expected; the loop will auto-resume at `resumeAt`. To resume early after upgrading the plan: `clawbot-control.sh clear-rate-limit` |
