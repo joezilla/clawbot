@@ -25,6 +25,7 @@ export CLAWBOT_SOCKET CLAWBOT_SESSION
 LOCK="/tmp/clawbot-tick.lock"
 exec 9>"$LOCK"
 if ! flock -n 9; then
+  echo "Already running"
   exit 0  # another tick is running — silently skip
 fi
 
@@ -189,9 +190,10 @@ set +e
 echo "=== $(ts) — claude -p invocation ===" >> "$claude_log"
 claude -p \
   --append-system-prompt "$SYSTEM_PROMPT" \
-  --allowedTools "Bash,Read,Write,Edit" \
+  --allowed-tools "Bash,Read,Write,Edit" \
+  --permission-mode bypassPermissions \
   --output-format text \
-  "$USER_PROMPT" >> "$claude_log" 2>&1
+  "$USER_PROMPT" </dev/null >> "$claude_log" 2>&1
 RC=$?
 set -e
 
