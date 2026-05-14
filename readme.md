@@ -1,4 +1,4 @@
-# Clawbot — The Claw Loop
+# Bmad-Bot — The Claw Loop
 
 An autonomous orchestrator that drives [Claude Code](https://claude.com/claude-code) through a [BMAD V6](https://github.com/bmad-code-org/BMAD-METHOD) development sprint without human babysitting. A cron job wakes up every 3 minutes, looks at what Claude Code is doing inside a tmux pane, and decides whether to advance it, recover it, or pause for human input.
 
